@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Beer Book</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #F5F0E8; }
+    body { font-family: 'Georgia', 'Times New Roman', serif; color: #1C1A18; -webkit-font-smoothing: antialiased; }
+    input, select, textarea, button { font-family: inherit; }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #C8791A; border-radius: 2px; }
+    .card { background: #FDFAF5; border: 1px solid #E2D9CC; border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+    .card-header { padding: 14px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: flex-start; }
+    .card-body { border-top: 1px solid #E2D9CC; padding: 14px 16px; background: #FAF7F0; }
+    .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #8C7B6A; display: block; margin-bottom: 5px; }
+    .input { width: 100%; padding: 10px 12px; border: 1px solid #E2D9CC; border-radius: 8px; font-size: 14px; color: #1C1A18; background: #fff; outline: none; }
+    .input:focus { border-color: #C8791A; }
+    .btn-primary { width: 100%; padding: 14px; background: #C8791A; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; letter-spacing: 0.5px; }
+    .btn-primary:disabled { background: #E2D9CC; color: #8C7B6A; cursor: default; }
+    .pill { background: #FDFAF5; border: 1px solid #E2D9CC; border-radius: 20px; padding: 5px 14px; font-size: 12px; color: #8C7B6A; display: inline-flex; gap: 6px; align-items: center; }
+    .fab { position: fixed; bottom: 28px; right: 24px; z-index: 100; background: #C8791A; color: #fff; border: none; border-radius: 50%; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 20px rgba(200,121,26,0.4); font-size: 28px; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(28,26,24,0.7); display: flex; align-items: flex-end; justify-content: center; z-index: 200; }
+    .modal { background: #FDFAF5; border-radius: 20px 20px 0 0; width: 100%; max-width: 680px; max-height: 92vh; overflow-y: auto; padding: 24px 20px 48px; }
+    .nav-btn { background: transparent; color: #8C7B6A; border: 1px solid #444; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+    .nav-btn.active { background: #C8791A; color: #1C1A18; border-color: #C8791A; }
+    .stat-card { background: #FDFAF5; border: 1px solid #E2D9CC; border-radius: 10px; padding: 16px 12px; text-align: center; }
+    .bar-wrap { background: #E2D9CC; border-radius: 3px; height: 6px; overflow: hidden; margin-top: 4px; }
+    .bar-fill { height: 100%; border-radius: 3px; background: #C8791A; }
+    .tag { background: #E2D9CC; border-radius: 8px; padding: 2px 8px; font-size: 11px; color: #8C7B6A; }
+    .amber-tag { background: #C8791A; color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; font-weight: bold; }
+    .icon-row { font-size: 12px; color: #8C7B6A; display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; align-items: center; }
+    .edit-btn { background: transparent; border: none; color: #C8791A; cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 0; }
+    .del-btn { background: transparent; border: none; color: #c0392b; cursor: pointer; display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 0; }
+    .search { width: 100%; padding: 10px 14px; border: 1px solid #E2D9CC; border-radius: 8px; background: #FDFAF5; font-size: 14px; color: #1C1A18; outline: none; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .photo-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; }
+    .photo-btn { width: 100%; padding: 16px; border: 1.5px dashed #E2D9CC; border-radius: 8px; background: transparent; cursor: pointer; color: #8C7B6A; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .month-bar { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+    .month-bar-inner { width: 100%; background: #C8791A; border-radius: 3px 3px 0 0; transition: height 0.3s; }
+    .month-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; padding-bottom: 20px; position: relative; }
+    .month-label { font-size: 9px; color: #8C7B6A; }
+    .empty-state { text-align: center; padding: 60px 20px; color: #8C7B6A; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const STORAGE_KEY = "beerbook-entries-v1";
+const VOLUME_TYPES = ["Draught", "Dumpie", "Can", "Bottle", "Quart", "Other"];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const defaultForm = () => ({
+  date: new Date().toISOString().split("T")[0],
+  name: "", brewery: "", style: "", description: "",
+  volume: "Can", quantity: 1,
+  location: "", locationUrl: "",
+  companions: "", notes: "", photo: null,
+});
+
+function toBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function loadEntries() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
+}
+function saveEntries(e) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(e)); } catch {}
+}
+
+// ── Simple SVG monthly bar chart ──────────────────────────────────────────────
+function MonthChart({ entries }) {
+  const data = MONTHS.map((name, i) => ({
+    name,
+    count: entries.filter(e => e.date && new Date(e.date).getMonth() === i)
+                  .reduce((s, e) => s + (Number(e.quantity) || 1), 0)
+  }));
+  const max = Math.max(...data.map(d => d.count), 1);
+  const H = 100, W = 100;
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: H + 24, minWidth: 300 }}>
+        {data.map(d => (
+          <div key={d.name} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: H + 24 }}>
+            <div style={{ fontSize: 10, color: "#C8791A", marginBottom: 2, fontWeight: d.count ? "bold" : "normal" }}>
+              {d.count > 0 ? d.count : ""}
+            </div>
+            <div style={{ width: "100%", background: d.count ? "#C8791A" : "#E2D9CC", borderRadius: "3px 3px 0 0", height: d.count ? `${(d.count / max) * H}px` : "4px", transition: "height 0.3s" }} />
+            <div style={{ fontSize: 9, color: "#8C7B6A", marginTop: 4 }}>{d.name}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [entries, setEntries] = useState(loadEntries);
+  const [view, setView] = useState("journal");
+  const [form, setForm] = useState(defaultForm());
+  const [editingId, setEditingId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+  const [filter, setFilter] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const photoRef = useRef();
+
+  useEffect(() => saveEntries(entries), [entries]);
+
+  const openAdd = () => { setForm(defaultForm()); setEditingId(null); setShowModal(true); };
+  const openEdit = (entry) => { setForm({ ...defaultForm(), ...entry }); setEditingId(entry.id); setShowModal(true); };
+  const closeModal = () => { setShowModal(false); setEditingId(null); setForm(defaultForm()); };
+
+  const handlePhoto = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const b64 = await toBase64(file);
+    setForm(f => ({ ...f, photo: b64 }));
+  };
+
+  const handleSubmit = () => {
+    if (!form.name.trim()) return;
+    if (editingId) {
+      setEntries(prev => prev.map(e => e.id === editingId ? { ...form, id: editingId } : e));
+    } else {
+      setEntries(prev => [{ ...form, id: Date.now() }, ...prev]);
+    }
+    closeModal();
+  };
+
+  const deleteEntry = (id) => {
+    if (!window.confirm("Delete this entry?")) return;
+    setEntries(prev => prev.filter(e => e.id !== id));
+    if (expandedId === id) setExpandedId(null);
+  };
+
+  const filtered = entries.filter(e =>
+    !filter || [e.name, e.brewery, e.style, e.location, e.companions]
+      .join(" ").toLowerCase().includes(filter.toLowerCase())
+  );
+
+  // Stats
+  const totalBeers = entries.reduce((s, e) => s + (Number(e.quantity) || 1), 0);
+  const byVolume = VOLUME_TYPES.map(v => ({
+    name: v,
+    count: entries.filter(e => e.volume === v).reduce((s, e) => s + (Number(e.quantity) || 1), 0)
+  })).filter(d => d.count > 0);
+  const byLocation = Object.entries(
+    entries.reduce((acc, e) => { const l = e.location || "Unknown"; acc[l] = (acc[l]||0) + (Number(e.quantity)||1); return acc; }, {})
+  ).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count).slice(0, 8);
+  const topBeer = entries.length
+    ? Object.entries(entries.reduce((acc, e) => { acc[e.name] = (acc[e.name]||0) + (Number(e.quantity)||1); return acc; }, {}))
+        .sort((a,b) => b[1]-a[1])[0]
+    : null;
+  const maxLoc = byLocation[0]?.count || 1;
+
+  const Field = ({ label, children }) => (
+    <div style={{ marginBottom: 14 }}>
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#F5F0E8" }}>
+
+      {/* Header */}
+      <div style={{ background: "#1C1A18", padding: "16px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "3px solid #C8791A", position: "sticky", top: 0, zIndex: 50 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 20 }}>🍺</span>
+          <div>
+            <div style={{ color: "#C8791A", fontWeight: "bold", fontSize: 17, letterSpacing: 1, textTransform: "uppercase" }}>Beer Book</div>
+            <div style={{ color: "#8C7B6A", fontSize: 10, letterSpacing: 2, textTransform: "uppercase", marginTop: 1 }}>Like Facebook, but for real.</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["journal","📖"],["stats","📊"]].map(([v, icon]) => (
+            <button key={v} className={`nav-btn${view===v?" active":""}`} onClick={() => setView(v)}>
+              {icon} {v}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 680, margin: "0 auto", padding: "0 16px 100px" }}>
+
+        {/* JOURNAL VIEW */}
+        {view === "journal" && (
+          <div>
+            {entries.length > 0 && (
+              <div style={{ padding: "16px 0 8px" }}>
+                <input className="search" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search beers, breweries, locations…" />
+              </div>
+            )}
+
+            {entries.length > 0 && (
+              <div style={{ display: "flex", gap: 8, padding: "8px 0 16px", flexWrap: "wrap" }}>
+                <span className="pill">🍺 {totalBeers} beers</span>
+                <span className="pill">📋 {entries.length} sessions</span>
+                {topBeer && <span className="pill">⭐ {topBeer[0]} ×{topBeer[1]}</span>}
+              </div>
+            )}
+
+            {filtered.length === 0 && (
+              <div className="empty-state">
+                <div style={{ fontSize: 48, marginBottom: 16 }}>🍺</div>
+                {entries.length === 0
+                  ? <><div style={{ fontSize: 16, marginBottom: 8 }}>Your log is empty.</div><div style={{ fontSize: 13 }}>Tap + to record your first beer.</div></>
+                  : <div>No results for "{filter}"</div>
+                }
+              </div>
+            )}
+
+            {filtered.map(entry => (
+              <div className="card" key={entry.id}>
+                <div className="card-header" onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: "bold", fontSize: 16 }}>{entry.name}</span>
+                      {entry.quantity > 1 && <span className="amber-tag">×{entry.quantity}</span>}
+                      <span className="tag">{entry.volume}</span>
+                    </div>
+                    <div className="icon-row">
+                      {entry.brewery && <span>{entry.brewery}</span>}
+                      {entry.style && <span>· {entry.style}</span>}
+                    </div>
+                    <div className="icon-row">
+                      {entry.date && <span>{new Date(entry.date + "T12:00").toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>}
+                      {entry.location && <span>📍 {entry.location}</span>}
+                      {entry.companions && <span>👥 {entry.companions}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8, color: "#8C7B6A", fontSize: 16 }}>
+                    {entry.photo && <span style={{ fontSize: 14 }}>📷</span>}
+                    <span>{expandedId === entry.id ? "▲" : "▼"}</span>
+                  </div>
+                </div>
+
+                {expandedId === entry.id && (
+                  <div className="card-body">
+                    {entry.photo && <img src={entry.photo} alt="beer" className="photo-preview" style={{ marginBottom: 12 }} />}
+                    {entry.description && <p style={{ fontSize: 13, color: "#8C7B6A", lineHeight: 1.5, marginBottom: 10 }}>{entry.description}</p>}
+                    {entry.notes && <p style={{ fontSize: 14, color: "#1C1A18", lineHeight: 1.6, marginBottom: 10, fontStyle: "italic" }}>"{entry.notes}"</p>}
+                    {entry.locationUrl && (
+                      <a href={entry.locationUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#C8791A", fontSize: 13, textDecoration: "none", marginBottom: 12 }}>
+                        🗺️ View on Google Maps
+                      </a>
+                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                      <button className="edit-btn" onClick={() => openEdit(entry)}>✏️ Edit</button>
+                      <button className="del-btn" onClick={() => deleteEntry(entry.id)}>🗑️ Delete</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* STATS VIEW */}
+        {view === "stats" && (
+          <div style={{ paddingTop: 20 }}>
+            {entries.length === 0 ? (
+              <div className="empty-state">
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
+                <div>Log some beers first to see your stats.</div>
+              </div>
+            ) : (
+              <>
+                <div className="grid3" style={{ marginBottom: 20 }}>
+                  {[
+                    { label: "Total Beers", value: totalBeers, emoji: "🍺" },
+                    { label: "Sessions", value: entries.length, emoji: "📋" },
+                    { label: "Avg / Session", value: (totalBeers / entries.length).toFixed(1), emoji: "📐" },
+                  ].map(s => (
+                    <div className="stat-card" key={s.label}>
+                      <div style={{ fontSize: 20 }}>{s.emoji}</div>
+                      <div style={{ fontSize: 22, fontWeight: "bold", color: "#C8791A", marginTop: 4 }}>{s.value}</div>
+                      <div style={{ fontSize: 10, color: "#8C7B6A", textTransform: "uppercase", letterSpacing: 1, marginTop: 2 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="card" style={{ padding: "18px 16px", marginBottom: 12 }}>
+                  <div className="label" style={{ marginBottom: 14 }}>Beers by Month</div>
+                  <MonthChart entries={entries} />
+                </div>
+
+                <div className="grid2" style={{ marginBottom: 12 }}>
+                  <div className="card" style={{ padding: "16px" }}>
+                    <div className="label" style={{ marginBottom: 12 }}>By Volume</div>
+                    {byVolume.map(d => (
+                      <div key={d.name} style={{ marginBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ color: "#1C1A18" }}>{d.name}</span>
+                          <span style={{ color: "#C8791A", fontWeight: "bold" }}>{d.count}</span>
+                        </div>
+                        <div className="bar-wrap"><div className="bar-fill" style={{ width: `${(d.count / (byVolume[0]?.count || 1)) * 100}%` }} /></div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="card" style={{ padding: "16px" }}>
+                    <div className="label" style={{ marginBottom: 12 }}>Top Locations</div>
+                    {byLocation.length === 0 && <div style={{ fontSize: 12, color: "#8C7B6A" }}>No location data yet.</div>}
+                    {byLocation.map(loc => (
+                      <div key={loc.name} style={{ marginBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ color: "#1C1A18", fontSize: 11 }}>{loc.name}</span>
+                          <span style={{ color: "#C8791A", fontWeight: "bold", fontSize: 11 }}>{loc.count}</span>
+                        </div>
+                        <div className="bar-wrap"><div className="bar-fill" style={{ width: `${(loc.count / maxLoc) * 100}%` }} /></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* FAB */}
+      <button className="fab" onClick={openAdd}>＋</button>
+
+      {/* MODAL */}
+      {showModal && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
+          <div className="modal">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <span style={{ fontSize: 16, fontWeight: "bold" }}>{editingId ? "Edit Entry" : "New Entry"}</span>
+              <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#8C7B6A" }}>✕</button>
+            </div>
+
+            {[
+              { label: "Beer Name *", key: "name", placeholder: "e.g. Peroni, Jack Black Lager…" },
+              { label: "Brewery", key: "brewery", placeholder: "e.g. SAB, Darling Brew…" },
+              { label: "Style", key: "style", placeholder: "e.g. Lager, IPA, Stout…" },
+              { label: "Description", key: "description", placeholder: "e.g. Crisp and refreshing, slightly hoppy…" },
+            ].map(f => (
+              <Field key={f.key} label={f.label}>
+                <input className="input" value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} />
+              </Field>
+            ))}
+
+            <div className="grid2" style={{ marginBottom: 14 }}>
+              <Field label="Volume Type">
+                <select className="input" value={form.volume} onChange={e => setForm(p => ({ ...p, volume: e.target.value }))}>
+                  {VOLUME_TYPES.map(v => <option key={v}>{v}</option>)}
+                </select>
+              </Field>
+              <Field label="Quantity">
+                <input className="input" type="number" min="1" max="99" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} />
+              </Field>
+            </div>
+
+            <Field label="Date">
+              <input className="input" type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+            </Field>
+
+            <Field label="Location">
+              <input className="input" value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="e.g. Barney's, RHBC, Hennie's…" />
+            </Field>
+
+            <Field label="📍 Google Maps Link">
+              <input className="input" value={form.locationUrl} onChange={e => setForm(p => ({ ...p, locationUrl: e.target.value }))} placeholder="https://maps.app.goo.gl/…" />
+            </Field>
+
+            <Field label="👥 With Whom">
+              <input className="input" value={form.companions} onChange={e => setForm(p => ({ ...p, companions: e.target.value }))} placeholder="e.g. Carmen, Johno…" />
+            </Field>
+
+            <Field label="Notes">
+              <textarea className="input" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tasting notes, occasion, mood…" rows={3} style={{ resize: "vertical" }} />
+            </Field>
+
+            <Field label="📷 Photo">
+              {form.photo ? (
+                <div style={{ position: "relative" }}>
+                  <img src={form.photo} alt="preview" className="photo-preview" />
+                  <button onClick={() => setForm(p => ({ ...p, photo: null }))} style={{ position: "absolute", top: 8, right: 8, background: "#1C1A18", color: "#fff", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", fontSize: 14 }}>✕</button>
+                </div>
+              ) : (
+                <button className="photo-btn" onClick={() => photoRef.current.click()}>📷 Upload photo</button>
+              )}
+              <input ref={photoRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: "none" }} />
+            </Field>
+
+            <button className="btn-primary" onClick={handleSubmit} disabled={!form.name.trim()}>
+              {editingId ? "Save changes" : "Log this beer 🍺"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
