@@ -10,6 +10,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -48,6 +49,13 @@
     .sync-bar { font-size: 11px; text-align: center; padding: 4px; letter-spacing: 1px; background: #1C1A18; color: #C8791A; }
     .sync-bar.ok { color: #6FCF97; }
     .sync-bar.err { color: #EB5757; }
+
+    /* Login screen */
+    .login-wrap { min-height: 100vh; background: #1C1A18; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .login-card { background: #FDFAF5; border-radius: 20px; width: 100%; max-width: 380px; padding: 36px 28px; }
+    .login-title { color: #C8791A; font-size: 22px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+    .login-slogan { color: #8C7B6A; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 32px; }
+    .login-error { background: #FEE; border: 1px solid #fcc; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #c0392b; margin-bottom: 16px; }
   </style>
 </head>
 <body>
@@ -63,6 +71,7 @@
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
+  const auth = firebase.auth();
 </script>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
@@ -121,7 +130,80 @@ function MonthChart({ entries }) {
   );
 }
 
+// ── Login Screen ──────────────────────────────────────────────────────────────
+function LoginScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      await auth.signInWithEmailAndPassword(email.trim(), password);
+    } catch (e) {
+      setError("Incorrect email or password. Please try again.");
+    }
+    setLoading(false);
+  };
+
+  const handleKey = (e) => { if (e.key === "Enter") handleLogin(); };
+
+  return (
+    <div className="login-wrap">
+      <div className="login-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <span style={{ fontSize: 28 }}>🍺</span>
+          <div>
+            <div className="login-title">Beer Book</div>
+            <div className="login-slogan">Like Facebook, but for real.</div>
+          </div>
+        </div>
+
+        {error && <div className="login-error">{error}</div>}
+
+        <Field label="Email">
+          <input
+            className="input"
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="your@email.com"
+            autoComplete="email"
+          />
+        </Field>
+
+        <Field label="Password">
+          <input
+            className="input"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="••••••••"
+            autoComplete="current-password"
+          />
+        </Field>
+
+        <button
+          className="btn-primary"
+          onClick={handleLogin}
+          disabled={loading || !email.trim() || !password.trim()}
+          style={{ marginTop: 8 }}
+        >
+          {loading ? "Signing in…" : "Sign in 🍺"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
+  const [user, setUser] = useState(undefined); // undefined = loading, null = logged out
   const [entries, setEntries] = useState([]);
   const [view, setView] = useState("journal");
   const [form, setForm] = useState(defaultForm());
@@ -132,19 +214,23 @@ function App() {
   const [syncStatus, setSyncStatus] = useState("syncing");
   const photoRef = useRef();
 
+  // Auth listener
   useEffect(() => {
+    return auth.onAuthStateChanged(u => setUser(u || null));
+  }, []);
+
+  // Firestore listener — only when logged in
+  useEffect(() => {
+    if (!user) return;
     setSyncStatus("syncing");
     const unsub = db.collection("entries")
       .orderBy("createdAt", "desc")
       .onSnapshot(
-        snap => {
-          setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-          setSyncStatus("ok");
-        },
+        snap => { setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setSyncStatus("ok"); },
         err => { console.error(err); setSyncStatus("err"); }
       );
     return () => unsub();
-  }, []);
+  }, [user]);
 
   const openAdd = () => { setForm(defaultForm()); setEditingId(null); setShowModal(true); };
   const openEdit = (entry) => { setForm({ ...defaultForm(), ...entry }); setEditingId(entry.id); setShowModal(true); };
@@ -152,7 +238,6 @@ function App() {
 
   const handlePhoto = async (e) => {
     const file = e.target.files[0]; if (!file) return;
-    setForm(f => ({ ...f, photo: URL.createObjectURL(file) }));
     const b64 = await toBase64(file);
     setForm(f => ({ ...f, photo: b64 }));
   };
@@ -167,9 +252,7 @@ function App() {
         await db.collection("entries").add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       }
       closeModal();
-    } catch (e) {
-      alert("Error saving entry. Check your connection.");
-    }
+    } catch (e) { alert("Error saving entry. Check your connection."); }
   };
 
   const deleteEntry = async (id) => {
@@ -179,6 +262,22 @@ function App() {
       if (expandedId === id) setExpandedId(null);
     } catch { alert("Error deleting entry."); }
   };
+
+  const handleSignOut = async () => {
+    if (window.confirm("Sign out?")) await auth.signOut();
+  };
+
+  // Loading state
+  if (user === undefined) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#1C1A18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: "#C8791A", fontSize: 32 }}>🍺</div>
+      </div>
+    );
+  }
+
+  // Not logged in
+  if (!user) return <LoginScreen />;
 
   const filtered = entries.filter(e =>
     !filter || [e.name, e.brewery, e.style, e.location, e.companions]
@@ -214,10 +313,11 @@ function App() {
             <div style={{ color: "#8C7B6A", fontSize: 10, letterSpacing: 2, textTransform: "uppercase", marginTop: 1 }}>Like Facebook, but for real.</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {[["journal","📖"],["stats","📊"]].map(([v, icon]) => (
             <button key={v} className={`nav-btn${view===v?" active":""}`} onClick={() => setView(v)}>{icon} {v}</button>
           ))}
+          <button onClick={handleSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: "#8C7B6A", fontSize: 18, marginLeft: 4 }} title="Sign out">🚪</button>
         </div>
       </div>
 
