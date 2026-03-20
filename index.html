@@ -9,6 +9,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; background: #F5F0E8; }
@@ -42,19 +44,29 @@
     .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     .photo-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; }
     .photo-btn { width: 100%; padding: 16px; border: 1.5px dashed #E2D9CC; border-radius: 8px; background: transparent; cursor: pointer; color: #8C7B6A; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    .month-bar { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
-    .month-bar-inner { width: 100%; background: #C8791A; border-radius: 3px 3px 0 0; transition: height 0.3s; }
-    .month-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; padding-bottom: 20px; position: relative; }
-    .month-label { font-size: 9px; color: #8C7B6A; }
     .empty-state { text-align: center; padding: 60px 20px; color: #8C7B6A; }
+    .sync-bar { font-size: 11px; text-align: center; padding: 4px; letter-spacing: 1px; background: #1C1A18; color: #C8791A; }
+    .sync-bar.ok { color: #6FCF97; }
+    .sync-bar.err { color: #EB5757; }
   </style>
 </head>
 <body>
 <div id="root"></div>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAx01LKXa4mkS3GDPt0j7IIQ2wA4r4x33A",
+    authDomain: "beerbook-ae9fa.firebaseapp.com",
+    projectId: "beerbook-ae9fa",
+    storageBucket: "beerbook-ae9fa.firebasestorage.app",
+    messagingSenderId: "179494259041",
+    appId: "1:179494259041:web:564986ede365a6d3c99d20"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+</script>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
-const STORAGE_KEY = "beerbook-entries-v1";
 const VOLUME_TYPES = ["Draught", "Dumpie", "Can", "Bottle", "Quart", "Other"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -75,14 +87,15 @@ function toBase64(file) {
   });
 }
 
-function loadEntries() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
-}
-function saveEntries(e) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(e)); } catch {}
+function Field({ label, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  );
 }
 
-// ── Simple SVG monthly bar chart ──────────────────────────────────────────────
 function MonthChart({ entries }) {
   const data = MONTHS.map((name, i) => ({
     name,
@@ -90,7 +103,7 @@ function MonthChart({ entries }) {
                   .reduce((s, e) => s + (Number(e.quantity) || 1), 0)
   }));
   const max = Math.max(...data.map(d => d.count), 1);
-  const H = 100, W = 100;
+  const H = 100;
   return (
     <div style={{ overflowX: "auto" }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: H + 24, minWidth: 300 }}>
@@ -108,27 +121,30 @@ function MonthChart({ entries }) {
   );
 }
 
-// ── App ───────────────────────────────────────────────────────────────────────
-function Field({ label, children }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <label className="label">{label}</label>
-      {children}
-    </div>
-  );
-}
-
 function App() {
-  const [entries, setEntries] = useState(loadEntries);
+  const [entries, setEntries] = useState([]);
   const [view, setView] = useState("journal");
   const [form, setForm] = useState(defaultForm());
   const [editingId, setEditingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [filter, setFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [syncStatus, setSyncStatus] = useState("syncing");
   const photoRef = useRef();
 
-  useEffect(() => saveEntries(entries), [entries]);
+  useEffect(() => {
+    setSyncStatus("syncing");
+    const unsub = db.collection("entries")
+      .orderBy("createdAt", "desc")
+      .onSnapshot(
+        snap => {
+          setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setSyncStatus("ok");
+        },
+        err => { console.error(err); setSyncStatus("err"); }
+      );
+    return () => unsub();
+  }, []);
 
   const openAdd = () => { setForm(defaultForm()); setEditingId(null); setShowModal(true); };
   const openEdit = (entry) => { setForm({ ...defaultForm(), ...entry }); setEditingId(entry.id); setShowModal(true); };
@@ -136,24 +152,32 @@ function App() {
 
   const handlePhoto = async (e) => {
     const file = e.target.files[0]; if (!file) return;
+    setForm(f => ({ ...f, photo: URL.createObjectURL(file) }));
     const b64 = await toBase64(file);
     setForm(f => ({ ...f, photo: b64 }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.name.trim()) return;
-    if (editingId) {
-      setEntries(prev => prev.map(e => e.id === editingId ? { ...form, id: editingId } : e));
-    } else {
-      setEntries(prev => [{ ...form, id: Date.now() }, ...prev]);
+    const { id, ...data } = form;
+    try {
+      if (editingId) {
+        await db.collection("entries").doc(editingId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      } else {
+        await db.collection("entries").add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      }
+      closeModal();
+    } catch (e) {
+      alert("Error saving entry. Check your connection.");
     }
-    closeModal();
   };
 
-  const deleteEntry = (id) => {
+  const deleteEntry = async (id) => {
     if (!window.confirm("Delete this entry?")) return;
-    setEntries(prev => prev.filter(e => e.id !== id));
-    if (expandedId === id) setExpandedId(null);
+    try {
+      await db.collection("entries").doc(id).delete();
+      if (expandedId === id) setExpandedId(null);
+    } catch { alert("Error deleting entry."); }
   };
 
   const filtered = entries.filter(e =>
@@ -161,7 +185,6 @@ function App() {
       .join(" ").toLowerCase().includes(filter.toLowerCase())
   );
 
-  // Stats
   const totalBeers = entries.reduce((s, e) => s + (Number(e.quantity) || 1), 0);
   const byVolume = VOLUME_TYPES.map(v => ({
     name: v,
@@ -171,15 +194,18 @@ function App() {
     entries.reduce((acc, e) => { const l = e.location || "Unknown"; acc[l] = (acc[l]||0) + (Number(e.quantity)||1); return acc; }, {})
   ).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count).slice(0, 8);
   const topBeer = entries.length
-    ? Object.entries(entries.reduce((acc, e) => { acc[e.name] = (acc[e.name]||0) + (Number(e.quantity)||1); return acc; }, {}))
-        .sort((a,b) => b[1]-a[1])[0]
+    ? Object.entries(entries.reduce((acc, e) => { acc[e.name] = (acc[e.name]||0)+(Number(e.quantity)||1); return acc; }, {})).sort((a,b)=>b[1]-a[1])[0]
     : null;
   const maxLoc = byLocation[0]?.count || 1;
 
   return (
     <div style={{ minHeight: "100vh", background: "#F5F0E8" }}>
+      <div className={`sync-bar ${syncStatus}`}>
+        {syncStatus === "syncing" && "⏳ Connecting…"}
+        {syncStatus === "ok" && "☁️ Synced"}
+        {syncStatus === "err" && "⚠️ Offline — changes won't save"}
+      </div>
 
-      {/* Header */}
       <div style={{ background: "#1C1A18", padding: "16px 20px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "3px solid #C8791A", position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 20 }}>🍺</span>
@@ -190,16 +216,12 @@ function App() {
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           {[["journal","📖"],["stats","📊"]].map(([v, icon]) => (
-            <button key={v} className={`nav-btn${view===v?" active":""}`} onClick={() => setView(v)}>
-              {icon} {v}
-            </button>
+            <button key={v} className={`nav-btn${view===v?" active":""}`} onClick={() => setView(v)}>{icon} {v}</button>
           ))}
         </div>
       </div>
 
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "0 16px 100px" }}>
-
-        {/* JOURNAL VIEW */}
         {view === "journal" && (
           <div>
             {entries.length > 0 && (
@@ -207,7 +229,6 @@ function App() {
                 <input className="search" value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search beers, breweries, locations…" />
               </div>
             )}
-
             {entries.length > 0 && (
               <div style={{ display: "flex", gap: 8, padding: "8px 0 16px", flexWrap: "wrap" }}>
                 <span className="pill">🍺 {totalBeers} beers</span>
@@ -215,17 +236,14 @@ function App() {
                 {topBeer && <span className="pill">⭐ {topBeer[0]} ×{topBeer[1]}</span>}
               </div>
             )}
-
             {filtered.length === 0 && (
               <div className="empty-state">
                 <div style={{ fontSize: 48, marginBottom: 16 }}>🍺</div>
                 {entries.length === 0
                   ? <><div style={{ fontSize: 16, marginBottom: 8 }}>Your log is empty.</div><div style={{ fontSize: 13 }}>Tap + to record your first beer.</div></>
-                  : <div>No results for "{filter}"</div>
-                }
+                  : <div>No results for "{filter}"</div>}
               </div>
             )}
-
             {filtered.map(entry => (
               <div className="card" key={entry.id}>
                 <div className="card-header" onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}>
@@ -245,12 +263,11 @@ function App() {
                       {entry.companions && <span>👥 {entry.companions}</span>}
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8, color: "#8C7B6A", fontSize: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8, color: "#8C7B6A" }}>
                     {entry.photo && <span style={{ fontSize: 14 }}>📷</span>}
                     <span>{expandedId === entry.id ? "▲" : "▼"}</span>
                   </div>
                 </div>
-
                 {expandedId === entry.id && (
                   <div className="card-body">
                     {entry.photo && <img src={entry.photo} alt="beer" className="photo-preview" style={{ marginBottom: 12 }} />}
@@ -272,7 +289,6 @@ function App() {
           </div>
         )}
 
-        {/* STATS VIEW */}
         {view === "stats" && (
           <div style={{ paddingTop: 20 }}>
             {entries.length === 0 ? (
@@ -295,36 +311,31 @@ function App() {
                     </div>
                   ))}
                 </div>
-
                 <div className="card" style={{ padding: "18px 16px", marginBottom: 12 }}>
                   <div className="label" style={{ marginBottom: 14 }}>Beers by Month</div>
                   <MonthChart entries={entries} />
                 </div>
-
                 <div className="grid2" style={{ marginBottom: 12 }}>
                   <div className="card" style={{ padding: "16px" }}>
                     <div className="label" style={{ marginBottom: 12 }}>By Volume</div>
                     {byVolume.map(d => (
                       <div key={d.name} style={{ marginBottom: 8 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                          <span style={{ color: "#1C1A18" }}>{d.name}</span>
-                          <span style={{ color: "#C8791A", fontWeight: "bold" }}>{d.count}</span>
+                          <span>{d.name}</span><span style={{ color: "#C8791A", fontWeight: "bold" }}>{d.count}</span>
                         </div>
-                        <div className="bar-wrap"><div className="bar-fill" style={{ width: `${(d.count / (byVolume[0]?.count || 1)) * 100}%` }} /></div>
+                        <div className="bar-wrap"><div className="bar-fill" style={{ width: `${(d.count/(byVolume[0]?.count||1))*100}%` }} /></div>
                       </div>
                     ))}
                   </div>
-
                   <div className="card" style={{ padding: "16px" }}>
                     <div className="label" style={{ marginBottom: 12 }}>Top Locations</div>
                     {byLocation.length === 0 && <div style={{ fontSize: 12, color: "#8C7B6A" }}>No location data yet.</div>}
                     {byLocation.map(loc => (
                       <div key={loc.name} style={{ marginBottom: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                          <span style={{ color: "#1C1A18", fontSize: 11 }}>{loc.name}</span>
-                          <span style={{ color: "#C8791A", fontWeight: "bold", fontSize: 11 }}>{loc.count}</span>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 }}>
+                          <span>{loc.name}</span><span style={{ color: "#C8791A", fontWeight: "bold" }}>{loc.count}</span>
                         </div>
-                        <div className="bar-wrap"><div className="bar-fill" style={{ width: `${(loc.count / maxLoc) * 100}%` }} /></div>
+                        <div className="bar-wrap"><div className="bar-fill" style={{ width: `${(loc.count/maxLoc)*100}%` }} /></div>
                       </div>
                     ))}
                   </div>
@@ -335,10 +346,8 @@ function App() {
         )}
       </div>
 
-      {/* FAB */}
       <button className="fab" onClick={openAdd}>＋</button>
 
-      {/* MODAL */}
       {showModal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>
           <div className="modal">
@@ -372,23 +381,18 @@ function App() {
             <Field label="Date">
               <input className="input" type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
             </Field>
-
             <Field label="Location">
               <input className="input" value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="e.g. Barney's, RHBC, Hennie's…" />
             </Field>
-
             <Field label="📍 Google Maps Link">
               <input className="input" value={form.locationUrl} onChange={e => setForm(p => ({ ...p, locationUrl: e.target.value }))} placeholder="https://maps.app.goo.gl/…" />
             </Field>
-
             <Field label="👥 With Whom">
               <input className="input" value={form.companions} onChange={e => setForm(p => ({ ...p, companions: e.target.value }))} placeholder="e.g. Carmen, Johno…" />
             </Field>
-
             <Field label="Notes">
               <textarea className="input" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tasting notes, occasion, mood…" rows={3} style={{ resize: "vertical" }} />
             </Field>
-
             <Field label="📷 Photo">
               {form.photo ? (
                 <div style={{ position: "relative" }}>
