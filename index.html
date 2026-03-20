@@ -109,6 +109,15 @@ function MonthChart({ entries }) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
+function Field({ label, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  );
+}
+
 function App() {
   const [entries, setEntries] = useState(loadEntries);
   const [view, setView] = useState("journal");
@@ -166,13 +175,6 @@ function App() {
         .sort((a,b) => b[1]-a[1])[0]
     : null;
   const maxLoc = byLocation[0]?.count || 1;
-
-  const Field = ({ label, children }) => (
-    <div style={{ marginBottom: 14 }}>
-      <label className="label">{label}</label>
-      {children}
-    </div>
-  );
 
   return (
     <div style={{ minHeight: "100vh", background: "#F5F0E8" }}>
