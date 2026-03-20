@@ -264,7 +264,7 @@ function App() {
   useEffect(() => {
     if (!user) return;
     setSyncStatus("syncing");
-    const unsub = db.collection("entries")
+    const unsub = db.collection("users").doc(user.uid).collection("entries")
       .orderBy("createdAt", "desc")
       .onSnapshot(
         snap => { setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setSyncStatus("ok"); },
@@ -311,10 +311,11 @@ function App() {
     if (!form.name.trim()) return;
     const { id, ...data } = form;
     try {
+      const col = db.collection("users").doc(auth.currentUser.uid).collection("entries");
       if (editingId) {
-        await db.collection("entries").doc(editingId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        await col.doc(editingId).update({ ...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
       } else {
-        await db.collection("entries").add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        await col.add({ ...data, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       }
       closeModal();
     } catch (e) { alert("Error saving entry. Check your connection."); }
@@ -323,7 +324,7 @@ function App() {
   const deleteEntry = async (id) => {
     if (!window.confirm("Delete this entry?")) return;
     try {
-      await db.collection("entries").doc(id).delete();
+      await db.collection("users").doc(auth.currentUser.uid).collection("entries").doc(id).delete();
       if (expandedId === id) setExpandedId(null);
     } catch { alert("Error deleting entry."); }
   };
