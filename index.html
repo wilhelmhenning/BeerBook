@@ -49,13 +49,21 @@
     .sync-bar { font-size: 11px; text-align: center; padding: 4px; letter-spacing: 1px; background: #1C1A18; color: #C8791A; }
     .sync-bar.ok { color: #6FCF97; }
     .sync-bar.err { color: #EB5757; }
-
-    /* Login screen */
     .login-wrap { min-height: 100vh; background: #1C1A18; display: flex; align-items: center; justify-content: center; padding: 24px; }
     .login-card { background: #FDFAF5; border-radius: 20px; width: 100%; max-width: 380px; padding: 36px 28px; }
     .login-title { color: #C8791A; font-size: 22px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
     .login-slogan { color: #8C7B6A; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 32px; }
     .login-error { background: #FEE; border: 1px solid #fcc; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #c0392b; margin-bottom: 16px; }
+
+    /* Autocomplete */
+    .autocomplete-wrap { position: relative; }
+    .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #C8791A; border-radius: 0 0 8px 8px; z-index: 300; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #F0EBE3; }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover, .autocomplete-item.focused { background: #FFF8F0; }
+    .autocomplete-item-name { font-size: 14px; color: #1C1A18; font-weight: bold; }
+    .autocomplete-item-sub { font-size: 11px; color: #8C7B6A; margin-top: 2px; }
+    .autocomplete-item-sub span { background: #F0EBE3; border-radius: 4px; padding: 1px 6px; margin-right: 4px; }
   </style>
 </head>
 <body>
@@ -130,6 +138,69 @@ function MonthChart({ entries }) {
   );
 }
 
+// ── Smart Beer Name Autocomplete ──────────────────────────────────────────────
+function BeerAutocomplete({ value, onChange, onSelect, suggestions }) {
+  const [open, setOpen] = useState(false);
+  const [focusedIdx, setFocusedIdx] = useState(-1);
+  const wrapRef = useRef();
+
+  const filtered = value.trim().length > 0
+    ? suggestions.filter(s => s.name.toLowerCase().includes(value.toLowerCase()))
+    : [];
+
+  useEffect(() => {
+    setOpen(filtered.length > 0);
+    setFocusedIdx(-1);
+  }, [value, filtered.length]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleKey = (e) => {
+    if (!open) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setFocusedIdx(i => Math.min(i + 1, filtered.length - 1)); }
+    if (e.key === "ArrowUp") { e.preventDefault(); setFocusedIdx(i => Math.max(i - 1, 0)); }
+    if (e.key === "Enter" && focusedIdx >= 0) { e.preventDefault(); onSelect(filtered[focusedIdx]); setOpen(false); }
+    if (e.key === "Escape") setOpen(false);
+  };
+
+  return (
+    <div className="autocomplete-wrap" ref={wrapRef}>
+      <input
+        className="input"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={handleKey}
+        onFocus={() => { if (filtered.length > 0) setOpen(true); }}
+        placeholder="e.g. Castle Lite, Windhoek Draught…"
+        autoComplete="off"
+      />
+      {open && filtered.length > 0 && (
+        <div className="autocomplete-list">
+          {filtered.map((s, i) => (
+            <div
+              key={s.name}
+              className={`autocomplete-item${i === focusedIdx ? " focused" : ""}`}
+              onMouseDown={() => { onSelect(s); setOpen(false); }}
+            >
+              <div className="autocomplete-item-name">{s.name}</div>
+              <div className="autocomplete-item-sub">
+                {s.brewery && <span>{s.brewery}</span>}
+                {s.style && <span>{s.style}</span>}
+                {s.volume && <span>{s.volume}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Login Screen ──────────────────────────────────────────────────────────────
 function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -139,8 +210,7 @@ function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) return;
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       await auth.signInWithEmailAndPassword(email.trim(), password);
     } catch (e) {
@@ -161,39 +231,14 @@ function LoginScreen() {
             <div className="login-slogan">Like Facebook, but for real.</div>
           </div>
         </div>
-
         {error && <div className="login-error">{error}</div>}
-
         <Field label="Email">
-          <input
-            className="input"
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="your@email.com"
-            autoComplete="email"
-          />
+          <input className="input" type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={handleKey} placeholder="your@email.com" autoComplete="email" />
         </Field>
-
         <Field label="Password">
-          <input
-            className="input"
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="••••••••"
-            autoComplete="current-password"
-          />
+          <input className="input" type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={handleKey} placeholder="••••••••" autoComplete="current-password" />
         </Field>
-
-        <button
-          className="btn-primary"
-          onClick={handleLogin}
-          disabled={loading || !email.trim() || !password.trim()}
-          style={{ marginTop: 8 }}
-        >
+        <button className="btn-primary" onClick={handleLogin} disabled={loading || !email.trim() || !password.trim()} style={{ marginTop: 8 }}>
           {loading ? "Signing in…" : "Sign in 🍺"}
         </button>
       </div>
@@ -203,7 +248,7 @@ function LoginScreen() {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
-  const [user, setUser] = useState(undefined); // undefined = loading, null = logged out
+  const [user, setUser] = useState(undefined);
   const [entries, setEntries] = useState([]);
   const [view, setView] = useState("journal");
   const [form, setForm] = useState(defaultForm());
@@ -214,12 +259,8 @@ function App() {
   const [syncStatus, setSyncStatus] = useState("syncing");
   const photoRef = useRef();
 
-  // Auth listener
-  useEffect(() => {
-    return auth.onAuthStateChanged(u => setUser(u || null));
-  }, []);
+  useEffect(() => { return auth.onAuthStateChanged(u => setUser(u || null)); }, []);
 
-  // Firestore listener — only when logged in
   useEffect(() => {
     if (!user) return;
     setSyncStatus("syncing");
@@ -231,6 +272,30 @@ function App() {
       );
     return () => unsub();
   }, [user]);
+
+  // Build unique beer suggestions from history
+  const beerSuggestions = React.useMemo(() => {
+    const seen = {};
+    entries.forEach(e => {
+      if (!e.name) return;
+      const key = e.name.toLowerCase();
+      if (!seen[key]) {
+        seen[key] = { name: e.name, brewery: e.brewery || "", style: e.style || "", description: e.description || "", volume: e.volume || "Can" };
+      }
+    });
+    return Object.values(seen).sort((a, b) => a.name.localeCompare(b.name));
+  }, [entries]);
+
+  const handleBeerSelect = (suggestion) => {
+    setForm(f => ({
+      ...f,
+      name: suggestion.name,
+      brewery: suggestion.brewery,
+      style: suggestion.style,
+      description: suggestion.description,
+      volume: suggestion.volume,
+    }));
+  };
 
   const openAdd = () => { setForm(defaultForm()); setEditingId(null); setShowModal(true); };
   const openEdit = (entry) => { setForm({ ...defaultForm(), ...entry }); setEditingId(entry.id); setShowModal(true); };
@@ -263,11 +328,8 @@ function App() {
     } catch { alert("Error deleting entry."); }
   };
 
-  const handleSignOut = async () => {
-    if (window.confirm("Sign out?")) await auth.signOut();
-  };
+  const handleSignOut = async () => { if (window.confirm("Sign out?")) await auth.signOut(); };
 
-  // Loading state
   if (user === undefined) {
     return (
       <div style={{ minHeight: "100vh", background: "#1C1A18", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -276,7 +338,6 @@ function App() {
     );
   }
 
-  // Not logged in
   if (!user) return <LoginScreen />;
 
   const filtered = entries.filter(e =>
@@ -456,8 +517,19 @@ function App() {
               <button onClick={closeModal} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "#8C7B6A" }}>✕</button>
             </div>
 
+            {/* Beer Name with autocomplete */}
+            <div style={{ marginBottom: 14 }}>
+              <label className="label">Beer Name *</label>
+              <BeerAutocomplete
+                value={form.name}
+                onChange={val => setForm(p => ({ ...p, name: val }))}
+                onSelect={handleBeerSelect}
+                suggestions={beerSuggestions}
+              />
+            </div>
+
+            {/* Remaining text fields */}
             {[
-              { label: "Beer Name *", key: "name", placeholder: "e.g. Peroni, Jack Black Lager…" },
               { label: "Brewery", key: "brewery", placeholder: "e.g. SAB, Darling Brew…" },
               { label: "Style", key: "style", placeholder: "e.g. Lager, IPA, Stout…" },
               { label: "Description", key: "description", placeholder: "e.g. Crisp and refreshing, slightly hoppy…" },
