@@ -547,7 +547,9 @@ function App() {
                 </select>
               </Field>
               <Field label="Quantity">
-                <input className="input" type="number" min="1" max="99" value={form.quantity} onChange={e => setForm(p => ({ ...p, quantity: parseInt(e.target.value) || 1 }))} />
+                <input className="input" type="number" min="1" max="99" value={form.quantity}
+  onChange={e => setForm(p => ({ ...p, quantity: e.target.value }))}
+  onBlur={e => setForm(p => ({ ...p, quantity: Math.max(1, parseInt(e.target.value) || 1) }))} />
               </Field>
             </div>
 
