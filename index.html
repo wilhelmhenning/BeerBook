@@ -138,6 +138,79 @@ function MonthChart({ entries }) {
   );
 }
 
+// ── Companion Autocomplete ───────────────────────────────────────────────────
+function CompanionAutocomplete({ value, onChange, suggestions }) {
+  const [open, setOpen] = useState(false);
+  const [focusedIdx, setFocusedIdx] = useState(-1);
+  const wrapRef = useRef();
+
+  // Get the current token being typed (after last comma)
+  const getToken = (val) => {
+    const parts = val.split(',');
+    return parts[parts.length - 1].trim().toLowerCase();
+  };
+
+  const token = getToken(value);
+
+  const filtered = token.length > 0
+    ? suggestions.filter(s => {
+        const alreadyAdded = value.toLowerCase().split(',').slice(0,-1).map(x=>x.trim()).includes(s.toLowerCase());
+        return s.toLowerCase().startsWith(token) && !alreadyAdded;
+      })
+    : [];
+
+  useEffect(() => { setOpen(filtered.length > 0); setFocusedIdx(-1); }, [value, filtered.length]);
+
+  useEffect(() => {
+    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectSuggestion = (name) => {
+    const parts = value.split(',');
+    parts[parts.length - 1] = ' ' + name;
+    const newVal = parts.join(',').replace(/^,\s*/, '') + ', ';
+    onChange(newVal);
+    setOpen(false);
+  };
+
+  const handleKey = (e) => {
+    if (!open) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setFocusedIdx(i => Math.min(i+1, filtered.length-1)); }
+    if (e.key === "ArrowUp") { e.preventDefault(); setFocusedIdx(i => Math.max(i-1, 0)); }
+    if (e.key === "Enter" && focusedIdx >= 0) { e.preventDefault(); selectSuggestion(filtered[focusedIdx]); }
+    if (e.key === "Escape") setOpen(false);
+  };
+
+  return (
+    <div className="autocomplete-wrap" ref={wrapRef}>
+      <input
+        className="input"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={handleKey}
+        onFocus={() => { if (filtered.length > 0) setOpen(true); }}
+        placeholder="e.g. Carmen, Johno…"
+        autoComplete="off"
+      />
+      {open && filtered.length > 0 && (
+        <div className="autocomplete-list">
+          {filtered.map((name, i) => (
+            <div
+              key={name}
+              className={`autocomplete-item${i === focusedIdx ? " focused" : ""}`}
+              onMouseDown={() => selectSuggestion(name)}
+            >
+              <div className="autocomplete-item-name">👤 {name}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Smart Beer Name Autocomplete ──────────────────────────────────────────────
 function BeerAutocomplete({ value, onChange, onSelect, suggestions }) {
   const [open, setOpen] = useState(false);
@@ -284,6 +357,21 @@ function App() {
       }
     });
     return Object.values(seen).sort((a, b) => a.name.localeCompare(b.name));
+  }, [entries]);
+
+  // Build unique companions suggestions from history
+  const companionSuggestions = React.useMemo(() => {
+    const seen = new Set();
+    entries.forEach(e => {
+      if (!e.companions) return;
+      e.companions.split(/[,\/]/).forEach(c => {
+        const name = c.trim();
+        if (name && name.toLowerCase() !== 'myself' && name.toLowerCase() !== 'alone' && name.toLowerCase() !== 'alleen') {
+          seen.add(name);
+        }
+      });
+    });
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
   }, [entries]);
 
   const handleBeerSelect = (suggestion) => {
@@ -563,7 +651,11 @@ function App() {
               <input className="input" value={form.locationUrl} onChange={e => setForm(p => ({ ...p, locationUrl: e.target.value }))} placeholder="https://maps.app.goo.gl/…" />
             </Field>
             <Field label="👥 With Whom">
-              <input className="input" value={form.companions} onChange={e => setForm(p => ({ ...p, companions: e.target.value }))} placeholder="e.g. Carmen, Johno…" />
+              <CompanionAutocomplete
+                value={form.companions}
+                onChange={val => setForm(p => ({ ...p, companions: val }))}
+                suggestions={companionSuggestions}
+              />
             </Field>
             <Field label="Notes">
               <textarea className="input" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} placeholder="Tasting notes, occasion, mood…" rows={3} style={{ resize: "vertical" }} />
